@@ -1,0 +1,15 @@
+[package]
+name = "davbox"
+version = "0.1.0"
+edition = "2024"
+description = "Instantly transform any local folder into a WebDAV server for your local network."
+license = "MIT"
+
+[[bin]]
+name = "davbox"
+path = "src/main.rs"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
