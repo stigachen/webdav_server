@@ -21,7 +21,7 @@ This repository currently contains the first Rust MVP:
 - Read-only mode.
 - WebDAV methods: `OPTIONS`, `PROPFIND`, `GET`, `HEAD`, `PUT`, `DELETE`, `MKCOL`, `COPY`, `MOVE`.
 - Byte range reads for media clients.
-- Live terminal dashboard with clients, requests, traffic, and recent activity.
+- Live terminal dashboard with active requests, connections, traffic, and recent activity.
 - Unit and functional tests.
 
 ## Install From Source
@@ -105,21 +105,27 @@ If you do not provide a password, Davbox generates a temporary password and prin
 By default Davbox shows a live terminal dashboard:
 
 ```text
-DAVBOX  // local WebDAV uplink active
+██████╗   █████╗  ██╗   ██╗ ██████╗   ██████╗  ██╗  ██╗
+██╔══██╗ ██╔══██╗ ██║   ██║ ██╔══██╗ ██╔═══██╗ ╚██╗██╔╝
+██║  ██║ ███████║ ██║   ██║ ██████╔╝ ██║   ██║  ╚███╔╝
 
-Name       Davbox
-Folder     /Users/alice/Movies
-WebDAV     http://192.168.1.23:8080/
-Mode       read-write
-Auth       davbox / 1234-5678
+             local folder uplink // WebDAV over LAN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Uptime     3m 12s
-Clients    active 1 total 4
-Requests   38
-Traffic    up 20.4 KB/s down 84.1 MB/s
-Recent Activity
-  GET      206  /movie.mkv
-  PROPFIND 207  /
+▸ UPLINK
+  • Name       Davbox
+  • Folder     /Users/alice/Movies
+  • WebDAV     http://192.168.1.23:8080/
+
+▸ TELEMETRY
+  ◆ Uptime     3m 12s
+  ◆ Active req 1
+  ◆ Conn total 4
+  ◆ Traffic    up 20.4 KB/s   down 84.1 MB/s
+
+▸ RECENT ACTIVITY
+  › GET       206  /movie.mkv                         84.1 MB   12ms
+  › PROPFIND  207  /                                  1.2 KB    0ms
 ```
 
 Use plain startup output instead:
@@ -127,6 +133,8 @@ Use plain startup output instead:
 ```sh
 davbox serve ~/Movies --no-tui
 ```
+
+The dashboard uses the terminal alternate screen, so live refreshes do not fill your shell history with repeated UI frames.
 
 ## Config File
 

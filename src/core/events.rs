@@ -68,8 +68,8 @@ struct Sample {
 #[derive(Debug, Clone)]
 pub struct Metrics {
     started_at: Instant,
-    active_clients: u64,
-    total_clients: u64,
+    active_requests: u64,
+    total_connections: u64,
     total_requests: u64,
     total_bytes_in: u64,
     total_bytes_out: u64,
@@ -81,8 +81,8 @@ impl Metrics {
     pub fn new() -> Self {
         Self {
             started_at: Instant::now(),
-            active_clients: 0,
-            total_clients: 0,
+            active_requests: 0,
+            total_connections: 0,
             total_requests: 0,
             total_bytes_in: 0,
             total_bytes_out: 0,
@@ -94,8 +94,8 @@ impl Metrics {
     pub fn apply(&mut self, event: ServerEvent) {
         match event {
             ServerEvent::ClientConnected { .. } => {
-                self.active_clients += 1;
-                self.total_clients += 1;
+                self.active_requests += 1;
+                self.total_connections += 1;
             }
             ServerEvent::RequestCompleted {
                 method,
@@ -105,7 +105,7 @@ impl Metrics {
                 bytes_out,
                 duration,
             } => {
-                self.active_clients = self.active_clients.saturating_sub(1);
+                self.active_requests = self.active_requests.saturating_sub(1);
                 self.total_requests += 1;
                 self.total_bytes_in += bytes_in;
                 self.total_bytes_out += bytes_out;
@@ -127,7 +127,7 @@ impl Metrics {
                 }
             }
             ServerEvent::ServerStopped => {
-                self.active_clients = 0;
+                self.active_requests = 0;
             }
         }
         self.prune_samples();
@@ -137,12 +137,12 @@ impl Metrics {
         self.started_at.elapsed()
     }
 
-    pub fn active_clients(&self) -> u64 {
-        self.active_clients
+    pub fn active_requests(&self) -> u64 {
+        self.active_requests
     }
 
-    pub fn total_clients(&self) -> u64 {
-        self.total_clients
+    pub fn total_connections(&self) -> u64 {
+        self.total_connections
     }
 
     pub fn total_requests(&self) -> u64 {
@@ -206,8 +206,8 @@ mod tests {
         metrics.apply(ServerEvent::ClientConnected {
             peer: "127.0.0.1:1234".to_string(),
         });
-        assert_eq!(metrics.active_clients(), 1);
-        assert_eq!(metrics.total_clients(), 1);
+        assert_eq!(metrics.active_requests(), 1);
+        assert_eq!(metrics.total_connections(), 1);
 
         metrics.apply(ServerEvent::RequestCompleted {
             method: "GET".to_string(),
@@ -218,7 +218,7 @@ mod tests {
             duration: Duration::from_millis(3),
         });
 
-        assert_eq!(metrics.active_clients(), 0);
+        assert_eq!(metrics.active_requests(), 0);
         assert_eq!(metrics.total_requests(), 1);
         assert_eq!(metrics.total_bytes_out(), 11);
         assert_eq!(metrics.recent().count(), 1);

@@ -37,7 +37,7 @@ Implemented:
 - WebDAV methods: `OPTIONS`, `PROPFIND`, `GET`, `HEAD`, `PUT`, `DELETE`, `MKCOL`, `COPY`, `MOVE`.
 - Byte range reads.
 - Server event channel for client and request lifecycle events.
-- Live terminal dashboard with clients, request count, traffic, totals, and recent activity.
+- Live terminal dashboard with active requests, connection count, traffic, totals, and recent activity.
 - Unit and functional tests.
 
 Not yet implemented:
@@ -223,35 +223,40 @@ The current UI is a live dashboard. It prints:
 - Read/write mode.
 - Auth info.
 - Uptime.
-- Active and total clients.
+- Active requests.
+- Total connections.
 - Request count.
 - Upload and download rates over a short rolling window.
 - Total bytes in and out.
 - Recent request activity.
 
 ```text
-DAVBOX // ONLINE
+██████╗   █████╗  ██╗   ██╗ ██████╗   ██████╗  ██╗  ██╗
+██╔══██╗ ██╔══██╗ ██║   ██║ ██╔══██╗ ██╔═══██╗ ╚██╗██╔╝
+██║  ██║ ███████║ ██║   ██║ ██████╔╝ ██║   ██║  ╚███╔╝
 
-Source
-  /Users/me/Movies
+             local folder uplink // WebDAV over LAN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Endpoints
-  WebDAV     http://192.168.1.8:8080/
-  Mode       read-only
-  Auth       enabled
+▸ UPLINK
+  • WebDAV     http://192.168.1.8:8080/
+  • Mode       read-only
+  • Auth       davbox / 1234-5678
 
-Live
-  Clients    2
-  Requests   148
-  Upload     3.2 MB/s
-  Download   91.4 MB/s
+▸ TELEMETRY
+  ◆ Active req 2
+  ◆ Conn total 148
+  ◆ Requests   148
+  ◆ Traffic    up 3.2 MB/s   down 91.4 MB/s
 
-Recent Activity
-  12:04:22  GET      /movie.mkv       206
-  12:04:19  PROPFIND /                207
+▸ RECENT ACTIVITY
+  › GET       206  /movie.mkv                         84.1 MB   12ms
+  › PROPFIND  207  /                                  1.2 KB    0ms
 ```
 
-The TUI consumes server events and maintains a `Metrics` model. Server core does not render UI and TUI does not implement WebDAV behavior.
+The TUI uses ANSI color, a large terminal logo, a neon divider, and compact command-style sections. It consumes server events and maintains a `Metrics` model. Server core does not render UI and TUI does not implement WebDAV behavior.
+
+The dashboard enters the terminal alternate screen and hides the cursor while running. On normal shutdown the terminal session guard restores the main screen, so periodic refreshes do not remain in shell scrollback.
 
 ## Testing Strategy
 
