@@ -31,6 +31,7 @@ where
 
 fn run_config(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
+        None | Some("-h" | "--help" | "help") => print_config_help(),
         Some("path") => {
             println!("{}", default_config_path().display());
             Ok(())
@@ -54,11 +55,20 @@ fn run_config(args: &[String]) -> Result<(), String> {
             );
             Ok(())
         }
-        _ => Err("Usage: davbox config <init|path|show> [--config FILE]".to_string()),
+        _ => Err(
+            "Usage: davbox config <init|path|show> [--config FILE]\n\nTry: davbox config --help"
+                .to_string(),
+        ),
     }
 }
 
 fn run_serve(args: &[String]) -> Result<(), String> {
+    if matches!(
+        args.first().map(String::as_str),
+        None | Some("-h" | "--help" | "help")
+    ) {
+        return print_serve_help();
+    }
     let parsed = ServeArgs::parse(args)?;
     let config_path = parsed
         .config_path
@@ -78,16 +88,48 @@ fn run_serve(args: &[String]) -> Result<(), String> {
 }
 
 fn print_help() -> Result<(), String> {
-    println!(
-        r#"DAVBOX // local WebDAV uplink
+    println!("{}", main_help());
+    Ok(())
+}
+
+fn print_serve_help() -> Result<(), String> {
+    println!("{}", serve_help());
+    Ok(())
+}
+
+fn print_config_help() -> Result<(), String> {
+    println!("{}", config_help());
+    Ok(())
+}
+
+fn main_help() -> &'static str {
+    r#"DAVBOX // local WebDAV uplink
 
 Usage:
   davbox serve <folder-or-profile> [options]
-  davbox config init
-  davbox config path
-  davbox config show
+  davbox config <command> [options]
 
-Serve options:
+Commands:
+  serve      Share a folder as a WebDAV server
+  config     Create, inspect, or locate the config file
+  help       Print this message
+
+Examples:
+  davbox serve ~/Movies
+  davbox serve ~/Movies --read-only
+  davbox config init
+
+Run 'davbox serve --help' or 'davbox config --help' for command details.
+"#
+}
+
+fn serve_help() -> &'static str {
+    r#"DAVBOX SERVE // share a local folder
+
+Usage:
+  davbox serve <folder-or-profile> [options]
+
+Options:
   --host HOST             Bind address, default 0.0.0.0
   --port PORT             Bind port, default 8080. Use 0 for a random free port
   --name NAME             Display/server name
@@ -101,10 +143,32 @@ Serve options:
 Examples:
   davbox serve ~/Movies
   davbox serve ~/Movies --read-only
+  davbox serve movies --port 9000
   DAVBOX_PASSWORD=secret davbox serve movies
 "#
-    );
-    Ok(())
+}
+
+fn config_help() -> &'static str {
+    r#"DAVBOX CONFIG // manage configuration
+
+Usage:
+  davbox config init [--config FILE]
+  davbox config path
+  davbox config show [--config FILE]
+
+Commands:
+  init       Create a starter config file
+  path       Print the default config file path
+  show       Print the current config file
+
+Default path:
+  ~/.davbox/config.toml
+
+Examples:
+  davbox config init
+  davbox config show
+  davbox config init --config ./davbox.toml
+"#
 }
 
 #[derive(Debug, Clone, Default)]
@@ -178,7 +242,7 @@ fn option_value(args: &[String], name: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::ServeArgs;
+    use super::{ServeArgs, config_help, main_help, serve_help};
 
     #[test]
     fn parses_serve_args() {
@@ -188,5 +252,12 @@ mod tests {
         assert_eq!(parsed.port, Some(9000));
         assert_eq!(parsed.read_only, Some(true));
         assert!(parsed.no_auth);
+    }
+
+    #[test]
+    fn help_texts_include_subcommand_usage() {
+        assert!(main_help().contains("davbox serve --help"));
+        assert!(serve_help().contains("davbox serve <folder-or-profile>"));
+        assert!(config_help().contains("davbox config init"));
     }
 }

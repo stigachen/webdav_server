@@ -209,9 +209,23 @@ davbox serve movies --config ./davbox.toml
 
 ```text
 davbox serve <folder-or-profile> [options]
-davbox config init
+davbox config <command> [options]
+```
+
+Help:
+
+```text
+davbox --help
+davbox serve --help
+davbox config --help
+```
+
+Config commands:
+
+```text
+davbox config init [--config FILE]
 davbox config path
-davbox config show
+davbox config show [--config FILE]
 ```
 
 Serve options:
