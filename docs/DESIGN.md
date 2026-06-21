@@ -36,13 +36,12 @@ Implemented:
 - Shared-root file system backend.
 - WebDAV methods: `OPTIONS`, `PROPFIND`, `GET`, `HEAD`, `PUT`, `DELETE`, `MKCOL`, `COPY`, `MOVE`.
 - Byte range reads.
-- Static terminal status panel.
+- Server event channel for client and request lifecycle events.
+- Live terminal dashboard with clients, request count, traffic, totals, and recent activity.
 - Unit and functional tests.
 
 Not yet implemented:
 
-- Live request dashboard.
-- Transfer speed accounting.
 - mDNS/Bonjour publishing.
 - TLS.
 - Real TOML parser with full TOML syntax.
@@ -62,6 +61,7 @@ src/
     auth.rs
     config.rs
     dav.rs
+    events.rs
     fs_backend.rs
     http.rs
     network.rs
@@ -149,6 +149,14 @@ Current parser intentionally supports only the subset we use: string, bool, inte
 
 `core::server::DavServer` owns the listener lifecycle. Each connection is handled on a thread. This is simple and adequate for the MVP.
 
+The server emits events through `core::events::EventBus`. The TUI subscribes to those events and derives display metrics without inspecting server internals.
+
+Current events:
+
+- `ClientConnected`
+- `RequestCompleted`
+- `ServerStopped`
+
 Future options:
 
 - Move to an async runtime such as Tokio.
@@ -206,7 +214,7 @@ Future:
 
 ## Terminal UI
 
-The current UI is a static first-pass status panel. It prints:
+The current UI is a live dashboard. It prints:
 
 - Server name.
 - Shared folder.
@@ -214,8 +222,12 @@ The current UI is a static first-pass status panel. It prints:
 - Bind address.
 - Read/write mode.
 - Auth info.
-
-The intended next version is a live dashboard:
+- Uptime.
+- Active and total clients.
+- Request count.
+- Upload and download rates over a short rolling window.
+- Total bytes in and out.
+- Recent request activity.
 
 ```text
 DAVBOX // ONLINE
@@ -239,7 +251,7 @@ Recent Activity
   12:04:19  PROPFIND /                207
 ```
 
-When that lands, server core should emit events rather than letting the TUI inspect internals.
+The TUI consumes server events and maintains a `Metrics` model. Server core does not render UI and TUI does not implement WebDAV behavior.
 
 ## Testing Strategy
 
@@ -253,6 +265,7 @@ Current tests cover:
 - Basic auth.
 - Percent decoding.
 - Range parsing.
+- Event metrics.
 - Dotfile hiding.
 - Parent traversal rejection.
 - Real localhost server GET.
@@ -300,9 +313,7 @@ Then upload platform binaries and checksums.
 ## Near-Term Engineering Plan
 
 1. Replace response buffering with streaming file transfer.
-2. Add server event channel for request lifecycle and byte counts.
-3. Build live terminal dashboard on top of events.
-4. Add `davbox doctor`.
-5. Add compatibility tests using real WebDAV clients where practical.
-6. Add release packaging.
-
+2. Add `davbox doctor`.
+3. Add QR code rendering for mobile setup.
+4. Add compatibility tests using real WebDAV clients where practical.
+5. Add release packaging.

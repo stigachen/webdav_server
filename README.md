@@ -21,9 +21,8 @@ This repository currently contains the first Rust MVP:
 - Read-only mode.
 - WebDAV methods: `OPTIONS`, `PROPFIND`, `GET`, `HEAD`, `PUT`, `DELETE`, `MKCOL`, `COPY`, `MOVE`.
 - Byte range reads for media clients.
+- Live terminal dashboard with clients, requests, traffic, and recent activity.
 - Unit and functional tests.
-
-The current terminal UI is a first-pass geek-style status panel. A richer live dashboard with request activity and transfer speed is planned next.
 
 ## Install From Source
 
@@ -100,6 +99,34 @@ davbox
 ```
 
 If you do not provide a password, Davbox generates a temporary password and prints it at startup.
+
+## Terminal Dashboard
+
+By default Davbox shows a live terminal dashboard:
+
+```text
+DAVBOX  // local WebDAV uplink active
+
+Name       Davbox
+Folder     /Users/alice/Movies
+WebDAV     http://192.168.1.23:8080/
+Mode       read-write
+Auth       davbox / 1234-5678
+
+Uptime     3m 12s
+Clients    active 1 total 4
+Requests   38
+Traffic    up 20.4 KB/s down 84.1 MB/s
+Recent Activity
+  GET      206  /movie.mkv
+  PROPFIND 207  /
+```
+
+Use plain startup output instead:
+
+```sh
+davbox serve ~/Movies --no-tui
+```
 
 ## Config File
 
@@ -226,15 +253,14 @@ The test suite includes:
 - Authentication tests.
 - Path sandbox tests.
 - Range request tests.
+- Server event and metrics tests.
 - Functional HTTP/WebDAV server tests over localhost.
 
 ## Roadmap
 
 Near-term:
 
-- Live TUI with connected clients, request log, and transfer speed.
 - `davbox doctor` for firewall, port, and network diagnostics.
 - QR code display for quick mobile setup.
 - Release builds for macOS, Linux, and Windows.
 - More compatibility testing with Finder, Windows Explorer, iOS Files, VLC, Kodi, and Infuse.
-
