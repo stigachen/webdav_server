@@ -178,6 +178,8 @@ Current WebDAV behavior:
 
 File responses use streaming `FileRange` bodies, so large downloads and media range requests are not buffered fully in memory before being written to the client.
 
+Accepted client sockets are forced back to blocking mode before request handling. The listener itself is nonblocking for shutdown responsiveness, but inherited nonblocking client sockets can truncate large streamed responses with `WouldBlock` on some platforms.
+
 ## File System Safety
 
 `core::fs_backend::FileSystemBackend` is the security boundary around the shared directory.
@@ -274,6 +276,7 @@ Current tests cover:
 - Percent decoding.
 - Range parsing.
 - Streaming byte-range responses.
+- Large ranged transfer regression coverage.
 - Event metrics.
 - Dotfile hiding.
 - Parent traversal rejection.

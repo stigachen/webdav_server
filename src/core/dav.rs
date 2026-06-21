@@ -213,7 +213,14 @@ fn content_type(path: &Path) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{ByteRange, parse_range};
+    use std::collections::HashMap;
+    use std::fs;
+
+    use crate::core::config::ServerConfig;
+    use crate::core::fs_backend::FileSystemBackend;
+    use crate::core::http::{Request, ResponseBody};
+
+    use super::{ByteRange, get_or_head, parse_range};
 
     #[test]
     fn parses_normal_range() {
@@ -229,5 +236,34 @@ mod tests {
             parse_range("bytes=-4", 10),
             Some(ByteRange { start: 6, end: 9 })
         );
+    }
+
+    #[test]
+    fn ranged_get_uses_streaming_file_body() {
+        let root =
+            std::env::temp_dir().join(format!("davbox-dav-range-test-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("media.bin"), b"0123456789").unwrap();
+        let backend = FileSystemBackend::new(root.clone(), &ServerConfig::default());
+        let request = Request {
+            method: "GET".to_string(),
+            path: "/media.bin".to_string(),
+            headers: HashMap::from([("range".to_string(), "bytes=2-6".to_string())]),
+            body: Vec::new(),
+        };
+
+        let response = get_or_head(&backend, &request).unwrap();
+        assert_eq!(response.status, 206);
+        assert_eq!(response.body_len(), 5);
+        assert!(matches!(
+            response.body,
+            ResponseBody::FileRange {
+                start: 2,
+                len: 5,
+                ..
+            }
+        ));
+
+        let _ = fs::remove_dir_all(root);
     }
 }

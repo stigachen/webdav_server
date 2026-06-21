@@ -152,7 +152,13 @@ fn write_body(stream: &mut TcpStream, body: ResponseBody) -> std::io::Result<()>
             let mut file = fs::File::open(path)?;
             file.seek(SeekFrom::Start(start))?;
             let mut limited = file.take(len);
-            std::io::copy(&mut limited, stream)?;
+            let copied = std::io::copy(&mut limited, stream)?;
+            if copied != len {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::WriteZero,
+                    format!("streamed {copied} bytes, expected {len}"),
+                ));
+            }
             Ok(())
         }
     }

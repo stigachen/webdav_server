@@ -76,6 +76,7 @@ impl DavServer {
             while !shutdown.load(Ordering::SeqCst) {
                 match listener.accept() {
                     Ok((stream, peer)) => {
+                        let _ = stream.set_nonblocking(false);
                         let config = Arc::clone(&config);
                         let backend = Arc::clone(&backend);
                         let events = Arc::clone(&events);
@@ -367,6 +368,49 @@ mod tests {
         assert!(response.starts_with("HTTP/1.1 206 Partial Content"));
         assert!(response.contains("Content-Range: bytes 2-5/11"));
         assert!(response.ends_with("llo "));
+
+        server.stop().unwrap();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn serves_large_byte_range_without_buffering_regression() {
+        let root =
+            std::env::temp_dir().join(format!("davbox-large-range-test-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let file = fs::File::create(root.join("large.bin")).unwrap();
+        file.set_len(16 * 1024 * 1024).unwrap();
+
+        let args = ServeArgs {
+            target: root.display().to_string(),
+            port: Some(0),
+            no_auth: true,
+            tui: Some(false),
+            ..ServeArgs::default()
+        };
+        let config = EffectiveConfig::from_inputs(Config::default(), args, &[]).unwrap();
+        let mut server = DavServer::new(config).unwrap();
+        server.start().unwrap();
+        let info = server.info();
+
+        let mut stream = TcpStream::connect(("127.0.0.1", info.port)).unwrap();
+        stream
+            .write_all(
+                b"GET /large.bin HTTP/1.1\r\nHost: localhost\r\nRange: bytes=1048576-5242879\r\n\r\n",
+            )
+            .unwrap();
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).unwrap();
+        let header_end = response
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .unwrap();
+        let headers = String::from_utf8_lossy(&response[..header_end]);
+        let body = &response[header_end + 4..];
+        assert!(headers.starts_with("HTTP/1.1 206 Partial Content"));
+        assert!(headers.contains("Content-Length: 4194304"));
+        assert!(headers.contains("Content-Range: bytes 1048576-5242879/16777216"));
+        assert_eq!(body.len(), 4 * 1024 * 1024);
 
         server.stop().unwrap();
         let _ = fs::remove_dir_all(root);
