@@ -53,6 +53,9 @@ impl FileSystemBackend {
 
         let candidate = self.root.join(&relative);
         let root = self.root.canonicalize()?;
+        if relative.as_os_str().is_empty() {
+            return Ok(root);
+        }
         let parent = candidate.parent().unwrap_or(&self.root);
         let canonical_parent = parent
             .canonicalize()
@@ -170,6 +173,15 @@ mod tests {
         fs::write(root.join(".env"), "secret").unwrap();
         let backend = FileSystemBackend::new(root.clone(), &ServerConfig::default());
         assert!(backend.resolve("/.env").is_err());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn resolves_webdav_root_to_shared_root() {
+        let root = std::env::temp_dir().join(format!("davbox-root-test-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let backend = FileSystemBackend::new(root.clone(), &ServerConfig::default());
+        assert_eq!(backend.resolve("/").unwrap(), root.canonicalize().unwrap());
         let _ = fs::remove_dir_all(root);
     }
 }

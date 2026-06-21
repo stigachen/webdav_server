@@ -368,4 +368,47 @@ mod tests {
         server.stop().unwrap();
         let _ = fs::remove_dir_all(root);
     }
+
+    #[test]
+    fn authenticated_propfind_root_lists_shared_root() {
+        let root =
+            std::env::temp_dir().join(format!("davbox-propfind-root-test-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("hello.txt"), "hello").unwrap();
+
+        let args = ServeArgs {
+            target: root.display().to_string(),
+            port: Some(0),
+            user: Some("davbox".to_string()),
+            password: Some("secret".to_string()),
+            tui: Some(false),
+            ..ServeArgs::default()
+        };
+        let config = EffectiveConfig::from_inputs(Config::default(), args, &[]).unwrap();
+        let mut server = DavServer::new(config).unwrap();
+        server.start().unwrap();
+        let info = server.info();
+
+        let mut unauthenticated = TcpStream::connect(("127.0.0.1", info.port)).unwrap();
+        unauthenticated
+            .write_all(b"PROPFIND / HTTP/1.1\r\nHost: localhost\r\nDepth: 1\r\n\r\n")
+            .unwrap();
+        let mut response = String::new();
+        unauthenticated.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 401 Unauthorized"));
+
+        let mut authenticated = TcpStream::connect(("127.0.0.1", info.port)).unwrap();
+        authenticated
+            .write_all(
+                b"PROPFIND / HTTP/1.1\r\nHost: localhost\r\nDepth: 1\r\nAuthorization: Basic ZGF2Ym94OnNlY3JldA==\r\n\r\n",
+            )
+            .unwrap();
+        let mut response = String::new();
+        authenticated.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 207 Multi-Status"));
+        assert!(response.contains("/hello.txt"));
+
+        server.stop().unwrap();
+        let _ = fs::remove_dir_all(root);
+    }
 }
