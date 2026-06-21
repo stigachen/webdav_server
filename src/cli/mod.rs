@@ -68,11 +68,11 @@ fn run_serve(args: &[String]) -> Result<(), String> {
     let effective = EffectiveConfig::from_inputs(config, parsed, &env::vars().collect::<Vec<_>>())?;
 
     let mut server = DavServer::new(effective).map_err(|err| err.to_string())?;
+    let events = server.subscribe();
     server.start().map_err(|err| err.to_string())?;
 
     let ui = ConsoleUi::new(server.info());
-    ui.render_started();
-    ui.wait_for_shutdown();
+    ui.run(events);
 
     server.stop().map_err(|err| err.to_string())
 }

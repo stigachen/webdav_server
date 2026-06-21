@@ -1,14 +1,16 @@
 use std::fs;
 use std::io::{self, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::core::auth::basic_auth_matches;
 use crate::core::config::EffectiveConfig;
 use crate::core::dav;
+use crate::core::events::{EventBus, ServerEvent};
 use crate::core::fs_backend::FileSystemBackend;
 use crate::core::http::{Request, Response, read_request, write_response};
 use crate::core::network::display_host;
@@ -35,6 +37,7 @@ pub struct DavServer {
     listener: Option<TcpListener>,
     addr: Option<SocketAddr>,
     shutdown: Arc<AtomicBool>,
+    events: Arc<Mutex<EventBus>>,
     handle: Option<thread::JoinHandle<()>>,
 }
 
@@ -48,8 +51,13 @@ impl DavServer {
             listener: None,
             addr: None,
             shutdown: Arc::new(AtomicBool::new(false)),
+            events: Arc::new(Mutex::new(EventBus::new())),
             handle: None,
         })
+    }
+
+    pub fn subscribe(&mut self) -> Receiver<ServerEvent> {
+        self.events.lock().expect("event bus poisoned").subscribe()
     }
 
     pub fn start(&mut self) -> io::Result<()> {
@@ -62,14 +70,22 @@ impl DavServer {
         let config = Arc::clone(&self.config);
         let backend = Arc::clone(&self.backend);
         let shutdown = Arc::clone(&self.shutdown);
+        let events = Arc::clone(&self.events);
         self.handle = Some(thread::spawn(move || {
             while !shutdown.load(Ordering::SeqCst) {
                 match listener.accept() {
-                    Ok((stream, _)) => {
+                    Ok((stream, peer)) => {
                         let config = Arc::clone(&config);
                         let backend = Arc::clone(&backend);
+                        let events = Arc::clone(&events);
+                        emit(
+                            &events,
+                            ServerEvent::ClientConnected {
+                                peer: peer.to_string(),
+                            },
+                        );
                         thread::spawn(move || {
-                            let _ = handle_connection(stream, &config, &backend);
+                            let _ = handle_connection(stream, &config, &backend, &events);
                         });
                     }
                     Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
@@ -92,6 +108,7 @@ impl DavServer {
                 .join()
                 .map_err(|_| io::Error::other("Server thread panicked"))?;
         }
+        emit(&self.events, ServerEvent::ServerStopped);
         Ok(())
     }
 
@@ -118,13 +135,31 @@ fn handle_connection(
     mut stream: TcpStream,
     config: &EffectiveConfig,
     backend: &FileSystemBackend,
+    events: &Arc<Mutex<EventBus>>,
 ) -> io::Result<()> {
     let Some(request) = read_request(&mut stream)? else {
         return Ok(());
     };
+    let started = Instant::now();
+    let bytes_in = request.body.len() as u64;
     let method = request.method.clone();
+    let path = request.path.clone();
     let response = route(config, backend, &request).unwrap_or_else(error_response);
-    write_response(&mut stream, &method, response)
+    let status = response.status;
+    let bytes_out = response.body.len() as u64;
+    let result = write_response(&mut stream, &method, response);
+    emit(
+        events,
+        ServerEvent::RequestCompleted {
+            method,
+            path,
+            status,
+            bytes_in,
+            bytes_out,
+            duration: started.elapsed(),
+        },
+    );
+    result
 }
 
 fn route(
@@ -159,6 +194,12 @@ fn route(
             "Method Not Allowed",
             "Method not allowed",
         )),
+    }
+}
+
+fn emit(events: &Arc<Mutex<EventBus>>, event: ServerEvent) {
+    if let Ok(mut events) = events.lock() {
+        events.emit(event);
     }
 }
 
@@ -237,9 +278,11 @@ mod tests {
     use std::fs;
     use std::io::{Read, Write};
     use std::net::TcpStream;
+    use std::time::Duration;
 
     use crate::cli::ServeArgs;
     use crate::core::config::{Config, EffectiveConfig};
+    use crate::core::events::ServerEvent;
 
     use super::DavServer;
 
@@ -258,6 +301,7 @@ mod tests {
         };
         let config = EffectiveConfig::from_inputs(Config::default(), args, &[]).unwrap();
         let mut server = DavServer::new(config).unwrap();
+        let events = server.subscribe();
         server.start().unwrap();
         let info = server.info();
 
@@ -269,6 +313,26 @@ mod tests {
         stream.read_to_string(&mut response).unwrap();
         assert!(response.starts_with("HTTP/1.1 200 OK"));
         assert!(response.ends_with("hello world"));
+
+        let mut saw_completed = false;
+        for _ in 0..3 {
+            if let Ok(ServerEvent::RequestCompleted {
+                method,
+                path,
+                status,
+                bytes_out,
+                ..
+            }) = events.recv_timeout(Duration::from_secs(1))
+            {
+                assert_eq!(method, "GET");
+                assert_eq!(path, "/hello.txt");
+                assert_eq!(status, 200);
+                assert_eq!(bytes_out, 11);
+                saw_completed = true;
+                break;
+            }
+        }
+        assert!(saw_completed);
 
         server.stop().unwrap();
         let _ = fs::remove_dir_all(root);
