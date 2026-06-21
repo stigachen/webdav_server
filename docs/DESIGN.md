@@ -261,7 +261,7 @@ The current UI is a live dashboard. It prints:
 
 The TUI uses ANSI color, a large terminal logo, a neon divider, and compact command-style sections. It consumes server events and maintains a `Metrics` model. Server core does not render UI and TUI does not implement WebDAV behavior.
 
-The dashboard enters the terminal alternate screen and hides the cursor while running. On normal shutdown the terminal session guard restores the main screen, so periodic refreshes do not remain in shell scrollback.
+The dashboard enters the terminal alternate screen and hides the cursor while running. On normal shutdown the terminal session guard restores the main screen, so periodic refreshes do not remain in shell scrollback. The large DAVBOX logo is rendered once when the TUI starts; periodic refreshes repaint only the dynamic status area below it. This keeps the Windows terminal from flickering around the top logo while preserving the low-scroll behavior on macOS and Linux.
 
 ## Testing Strategy
 

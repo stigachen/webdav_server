@@ -6,6 +6,9 @@ use std::time::Duration;
 use crate::core::events::{Metrics, ServerEvent};
 use crate::core::server::ServerInfo;
 
+const STATIC_HEADER_ROWS: usize = 9;
+const DYNAMIC_START_ROW: usize = STATIC_HEADER_ROWS + 1;
+
 pub struct ConsoleUi {
     info: ServerInfo,
 }
@@ -25,12 +28,13 @@ impl ConsoleUi {
         let quit = spawn_enter_listener();
         let mut metrics = Metrics::new();
         let _terminal = TerminalSession::enter();
+        self.render_static_header();
 
         loop {
             while let Ok(event) = events.try_recv() {
                 metrics.apply(event);
             }
-            self.render_dashboard(&metrics);
+            self.render_dynamic_dashboard(&metrics);
             if quit.try_recv().is_ok() {
                 break;
             }
@@ -44,8 +48,22 @@ impl ConsoleUi {
         println!("Press Enter or Ctrl+C to stop.");
     }
 
-    fn render_dashboard(&self, metrics: &Metrics) {
-        move_home();
+    fn render_static_header(&self) {
+        print!(
+            "{}{}{}{}",
+            render_logo(),
+            line(&magenta(
+                "             local folder uplink // WebDAV over LAN"
+            )),
+            line(&rainbow_rule(96)),
+            blank_line(),
+        );
+        let _ = io::stdout().flush();
+    }
+
+    fn render_dynamic_dashboard(&self, metrics: &Metrics) {
+        move_to_dynamic_start();
+        clear_to_screen_end();
         let url = format!("http://{}:{}/", self.info.display_host, self.info.port);
         let (upload_rate, download_rate) = metrics.transfer_rates();
         let mode = if self.info.read_only {
@@ -55,13 +73,7 @@ impl ConsoleUi {
         };
 
         println!(
-            "{}{}{}{}{}{}{}{}{}{}",
-            render_logo(),
-            line(&magenta(
-                "             local folder uplink // WebDAV over LAN"
-            )),
-            line(&rainbow_rule(96)),
-            blank_line(),
+            "{}{}{}{}{}{}",
             line(&section("UPLINK")),
             block(&render_endpoint_block(
                 &self.info.name,
@@ -126,8 +138,12 @@ impl Drop for TerminalSession {
     }
 }
 
-fn move_home() {
-    print!("\x1b[H");
+fn move_to_dynamic_start() {
+    print!("\x1b[{DYNAMIC_START_ROW};1H");
+}
+
+fn clear_to_screen_end() {
+    print!("\x1b[J");
 }
 
 fn render_logo() -> String {
@@ -323,4 +339,23 @@ fn red(value: &str) -> String {
 
 fn color(value: &str, code: u8) -> String {
     format!("\x1b[{code}m{value}\x1b[0m")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{STATIC_HEADER_ROWS, blank_line, line, magenta, rainbow_rule, render_logo};
+
+    #[test]
+    fn static_header_row_count_matches_dynamic_start() {
+        let header = format!(
+            "{}{}{}{}",
+            render_logo(),
+            line(&magenta(
+                "             local folder uplink // WebDAV over LAN"
+            )),
+            line(&rainbow_rule(96)),
+            blank_line(),
+        );
+        assert_eq!(header.lines().count(), STATIC_HEADER_ROWS);
+    }
 }

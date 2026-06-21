@@ -183,7 +183,7 @@ Use plain startup output instead:
 davbox serve ~/Movies --no-tui
 ```
 
-The dashboard uses the terminal alternate screen, so live refreshes do not fill your shell history with repeated UI frames.
+The dashboard uses the terminal alternate screen, so live refreshes do not fill your shell history with repeated UI frames. The top logo is drawn once and the live status area refreshes below it, which keeps Windows terminals much calmer.
 
 ## Config File
 
