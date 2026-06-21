@@ -303,7 +303,6 @@ Release artifacts:
 
 ```text
 macOS arm64     davbox-vX.Y.Z-aarch64-apple-darwin.tar.gz
-macOS x64       davbox-vX.Y.Z-x86_64-apple-darwin.tar.gz
 Linux x64       davbox-vX.Y.Z-x86_64-unknown-linux-gnu.tar.gz
 Windows x64     davbox-vX.Y.Z-x86_64-pc-windows-msvc.zip
 ```

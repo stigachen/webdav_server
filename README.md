@@ -34,12 +34,6 @@ macOS Apple Silicon:
 davbox-v0.1.0-aarch64-apple-darwin.tar.gz
 ```
 
-macOS Intel:
-
-```text
-davbox-v0.1.0-x86_64-apple-darwin.tar.gz
-```
-
 Linux x64:
 
 ```text
@@ -345,7 +339,6 @@ The release workflow builds and uploads:
 
 ```text
 macOS Apple Silicon   davbox-v0.1.0-aarch64-apple-darwin.tar.gz
-macOS Intel           davbox-v0.1.0-x86_64-apple-darwin.tar.gz
 Linux x64             davbox-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
 Windows x64           davbox-v0.1.0-x86_64-pc-windows-msvc.zip
 ```
