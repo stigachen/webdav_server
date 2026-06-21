@@ -184,7 +184,7 @@ password_env = "DAVBOX_PASSWORD"
 [tui]
 enabled = true
 theme = "matrix"
-refresh_ms = 250
+refresh_ms = 750
 
 [profiles.movies]
 path = "~/Movies"

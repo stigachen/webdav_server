@@ -29,6 +29,7 @@ pub struct ServerInfo {
     pub username: String,
     pub password: Option<String>,
     pub tui_enabled: bool,
+    pub tui_refresh_ms: u64,
 }
 
 pub struct DavServer {
@@ -127,6 +128,7 @@ impl DavServer {
             username: self.config.auth.username.clone(),
             password: self.config.auth.password.clone(),
             tui_enabled: self.config.tui.enabled,
+            tui_refresh_ms: self.config.tui.refresh_ms,
         }
     }
 }

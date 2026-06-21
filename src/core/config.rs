@@ -43,7 +43,7 @@ impl Default for TuiConfig {
         Self {
             enabled: true,
             theme: "matrix".to_string(),
-            refresh_ms: 250,
+            refresh_ms: 750,
         }
     }
 }
@@ -235,7 +235,7 @@ password_env = "DAVBOX_PASSWORD"
 [tui]
 enabled = true
 theme = "matrix"
-refresh_ms = 250
+refresh_ms = 750
 
 [profiles.movies]
 path = "~/Movies"
@@ -439,5 +439,18 @@ read_only = true
     fn default_config_lives_in_hidden_home_directory() {
         let path = super::default_config_path();
         assert!(path.ends_with(std::path::Path::new(".davbox").join("config.toml")));
+    }
+
+    #[test]
+    fn parses_tui_refresh_interval() {
+        let config = Config::parse(
+            r#"
+[tui]
+enabled = true
+refresh_ms = 900
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.tui.refresh_ms, 900);
     }
 }

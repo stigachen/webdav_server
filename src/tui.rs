@@ -34,7 +34,7 @@ impl ConsoleUi {
             if quit.try_recv().is_ok() {
                 break;
             }
-            thread::sleep(Duration::from_millis(750));
+            thread::sleep(Duration::from_millis(self.info.tui_refresh_ms));
         }
     }
 
