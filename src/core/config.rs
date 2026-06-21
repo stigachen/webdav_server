@@ -201,25 +201,7 @@ impl EffectiveConfig {
 }
 
 pub fn default_config_path() -> PathBuf {
-    if cfg!(target_os = "macos") {
-        home_dir()
-            .join("Library")
-            .join("Application Support")
-            .join("davbox")
-            .join("config.toml")
-    } else if cfg!(target_os = "windows") {
-        env::var_os("APPDATA")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| home_dir().join("AppData").join("Roaming"))
-            .join("davbox")
-            .join("config.toml")
-    } else {
-        env::var_os("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| home_dir().join(".config"))
-            .join("davbox")
-            .join("config.toml")
-    }
+    home_dir().join(".davbox").join("config.toml")
 }
 
 pub fn write_default_config(path: &Path) -> Result<PathBuf, ConfigError> {
@@ -451,5 +433,11 @@ read_only = true
         assert_eq!(effective.server.port, 7000);
         assert!(!effective.server.read_only);
         assert!(!effective.auth.enabled);
+    }
+
+    #[test]
+    fn default_config_lives_in_hidden_home_directory() {
+        let path = super::default_config_path();
+        assert!(path.ends_with(std::path::Path::new(".davbox").join("config.toml")));
     }
 }

@@ -159,9 +159,9 @@ davbox config show
 Default config locations:
 
 ```text
-macOS     ~/Library/Application Support/davbox/config.toml
-Linux     ~/.config/davbox/config.toml
-Windows   %APPDATA%\davbox\config.toml
+macOS     ~/.davbox/config.toml
+Linux     ~/.davbox/config.toml
+Windows   %USERPROFILE%\.davbox\config.toml
 ```
 
 Example:

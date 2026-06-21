@@ -103,10 +103,12 @@ The server receives an `EffectiveConfig`. It should not care whether settings ca
 Davbox has one default user-level config file:
 
 ```text
-macOS     ~/Library/Application Support/davbox/config.toml
-Linux     ~/.config/davbox/config.toml
-Windows   %APPDATA%\davbox\config.toml
+macOS     ~/.davbox/config.toml
+Linux     ~/.davbox/config.toml
+Windows   %USERPROFILE%\.davbox\config.toml
 ```
+
+This intentionally follows the convention used by many CLI-first developer tools: a hidden home-directory folder that is easy to find, edit, back up, and discuss in documentation.
 
 Users can override it:
 
