@@ -24,6 +24,60 @@ This repository currently contains the first Rust MVP:
 - Live terminal dashboard with active requests, connections, traffic, and recent activity.
 - Unit and functional tests.
 
+## Install From Release
+
+Download the package for your platform from GitHub Releases, then unpack it and run `davbox`.
+
+macOS Apple Silicon:
+
+```text
+davbox-v0.1.0-aarch64-apple-darwin.tar.gz
+```
+
+macOS Intel:
+
+```text
+davbox-v0.1.0-x86_64-apple-darwin.tar.gz
+```
+
+Linux x64:
+
+```text
+davbox-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
+```
+
+Windows x64:
+
+```text
+davbox-v0.1.0-x86_64-pc-windows-msvc.zip
+```
+
+### macOS Gatekeeper
+
+Current macOS release binaries are not signed with an Apple Developer ID and are not notarized yet. If you download Davbox from GitHub, macOS may show:
+
+```text
+Apple could not verify "davbox" is free of malware
+```
+
+This happens because browser-downloaded files receive the `com.apple.quarantine` attribute. Locally built binaries under `target/` usually do not have that attribute.
+
+After unpacking the release archive, you can remove the quarantine attribute:
+
+```sh
+xattr -dr com.apple.quarantine ./davbox
+chmod +x ./davbox
+./davbox --version
+```
+
+If you want to clear the whole unpacked folder:
+
+```sh
+xattr -dr com.apple.quarantine ./davbox-v0.1.0-aarch64-apple-darwin
+```
+
+Long term, macOS release artifacts should be signed and notarized before broad public distribution.
+
 ## Install From Source
 
 You need Rust installed.

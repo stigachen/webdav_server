@@ -327,6 +327,8 @@ cargo build --release --target <target>
 
 The release uses `GITHUB_TOKEN` with `contents: write` permission via `softprops/action-gh-release`.
 
+macOS release artifacts are currently unsigned and not notarized. GitHub-downloaded binaries may be blocked by Gatekeeper because they carry the `com.apple.quarantine` attribute. Before broad public distribution, add Developer ID signing and Apple notarization to the release workflow.
+
 ## Near-Term Engineering Plan
 
 1. Replace response buffering with streaming file transfer.
