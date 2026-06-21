@@ -21,6 +21,7 @@ This repository currently contains the first Rust MVP:
 - Read-only mode.
 - WebDAV methods: `OPTIONS`, `PROPFIND`, `GET`, `HEAD`, `PUT`, `DELETE`, `MKCOL`, `COPY`, `MOVE`.
 - Byte range reads for media clients.
+- Streaming file responses for large downloads and media playback.
 - Live terminal dashboard with active requests, connections, traffic, and recent activity.
 - Unit and functional tests.
 
@@ -323,6 +324,7 @@ The test suite includes:
 - Authentication tests.
 - Path sandbox tests.
 - Range request tests.
+- Streaming byte-range response tests.
 - Server event and metrics tests.
 - Functional HTTP/WebDAV server tests over localhost.
 

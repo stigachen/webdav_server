@@ -36,6 +36,7 @@ Implemented:
 - Shared-root file system backend.
 - WebDAV methods: `OPTIONS`, `PROPFIND`, `GET`, `HEAD`, `PUT`, `DELETE`, `MKCOL`, `COPY`, `MOVE`.
 - Byte range reads.
+- Streaming file responses for `GET` and ranged `GET` requests.
 - Server event channel for client and request lifecycle events.
 - Live terminal dashboard with active requests, connection count, traffic, totals, and recent activity.
 - Unit and functional tests.
@@ -175,7 +176,7 @@ Current WebDAV behavior:
 - `MKCOL`: creates folders.
 - `COPY`/`MOVE`: copies or renames inside the shared root.
 
-Current implementation reads file responses into memory. This should become streaming before large media workloads are considered production-ready.
+File responses use streaming `FileRange` bodies, so large downloads and media range requests are not buffered fully in memory before being written to the client.
 
 ## File System Safety
 
@@ -272,6 +273,7 @@ Current tests cover:
 - Basic auth.
 - Percent decoding.
 - Range parsing.
+- Streaming byte-range responses.
 - Event metrics.
 - Dotfile hiding.
 - Parent traversal rejection.
@@ -330,8 +332,7 @@ macOS release artifacts are currently unsigned and not notarized. GitHub-downloa
 
 ## Near-Term Engineering Plan
 
-1. Replace response buffering with streaming file transfer.
-2. Add `davbox doctor`.
-3. Add QR code rendering for mobile setup.
-4. Add compatibility tests using real WebDAV clients where practical.
-5. Add more release targets such as Linux aarch64.
+1. Add `davbox doctor`.
+2. Add QR code rendering for mobile setup.
+3. Add compatibility tests using real WebDAV clients where practical.
+4. Add more release targets such as Linux aarch64.

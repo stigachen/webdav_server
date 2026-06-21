@@ -148,7 +148,7 @@ fn handle_connection(
     let path = request.path.clone();
     let response = route(config, backend, &request).unwrap_or_else(error_response);
     let status = response.status;
-    let bytes_out = response.body.len() as u64;
+    let bytes_out = response.body_len();
     let result = write_response(&mut stream, &method, response);
     emit(
         events,
@@ -335,6 +335,38 @@ mod tests {
             }
         }
         assert!(saw_completed);
+
+        server.stop().unwrap();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn serves_byte_range_over_http() {
+        let root = std::env::temp_dir().join(format!("davbox-range-test-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("hello.txt"), "hello world").unwrap();
+
+        let args = ServeArgs {
+            target: root.display().to_string(),
+            port: Some(0),
+            no_auth: true,
+            tui: Some(false),
+            ..ServeArgs::default()
+        };
+        let config = EffectiveConfig::from_inputs(Config::default(), args, &[]).unwrap();
+        let mut server = DavServer::new(config).unwrap();
+        server.start().unwrap();
+        let info = server.info();
+
+        let mut stream = TcpStream::connect(("127.0.0.1", info.port)).unwrap();
+        stream
+            .write_all(b"GET /hello.txt HTTP/1.1\r\nHost: localhost\r\nRange: bytes=2-5\r\n\r\n")
+            .unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 206 Partial Content"));
+        assert!(response.contains("Content-Range: bytes 2-5/11"));
+        assert!(response.ends_with("llo "));
 
         server.stop().unwrap();
         let _ = fs::remove_dir_all(root);

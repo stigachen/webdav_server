@@ -1,6 +1,8 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::fs;
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::net::TcpStream;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request {
@@ -15,7 +17,22 @@ pub struct Response {
     pub status: u16,
     pub reason: &'static str,
     pub headers: Vec<(String, String)>,
-    pub body: Vec<u8>,
+    pub body: ResponseBody,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResponseBody {
+    Bytes(Vec<u8>),
+    FileRange { path: PathBuf, start: u64, len: u64 },
+}
+
+impl ResponseBody {
+    pub fn len(&self) -> u64 {
+        match self {
+            ResponseBody::Bytes(bytes) => bytes.len() as u64,
+            ResponseBody::FileRange { len, .. } => *len,
+        }
+    }
 }
 
 impl Response {
@@ -24,7 +41,7 @@ impl Response {
             status,
             reason,
             headers: Vec::new(),
-            body: Vec::new(),
+            body: ResponseBody::Bytes(Vec::new()),
         }
     }
 
@@ -41,8 +58,17 @@ impl Response {
     }
 
     pub fn with_body(mut self, body: Vec<u8>) -> Self {
-        self.body = body;
+        self.body = ResponseBody::Bytes(body);
         self
+    }
+
+    pub fn with_file_range(mut self, path: PathBuf, start: u64, len: u64) -> Self {
+        self.body = ResponseBody::FileRange { path, start, len };
+        self
+    }
+
+    pub fn body_len(&self) -> u64 {
+        self.body.len()
     }
 }
 
@@ -95,7 +121,7 @@ pub fn write_response(
 ) -> std::io::Result<()> {
     response.headers.push((
         "Content-Length".to_string(),
-        response.body.len().to_string(),
+        response.body_len().to_string(),
     ));
     response
         .headers
@@ -111,9 +137,25 @@ pub fn write_response(
     }
     write!(stream, "\r\n")?;
     if request_method != "HEAD" {
-        stream.write_all(&response.body)?;
+        write_body(stream, response.body)?;
     }
     stream.flush()
+}
+
+fn write_body(stream: &mut TcpStream, body: ResponseBody) -> std::io::Result<()> {
+    match body {
+        ResponseBody::Bytes(bytes) => stream.write_all(&bytes),
+        ResponseBody::FileRange { path, start, len } => {
+            if len == 0 {
+                return Ok(());
+            }
+            let mut file = fs::File::open(path)?;
+            file.seek(SeekFrom::Start(start))?;
+            let mut limited = file.take(len);
+            std::io::copy(&mut limited, stream)?;
+            Ok(())
+        }
+    }
 }
 
 pub fn percent_decode_path(input: &str) -> Result<String, String> {

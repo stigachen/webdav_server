@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{self, Read};
+use std::io;
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
@@ -54,19 +54,17 @@ pub fn get_or_head(backend: &FileSystemBackend, request: &Request) -> io::Result
         (200, "OK", 0, size.saturating_sub(1))
     };
 
-    let mut body = Vec::new();
-    if size > 0 {
-        let mut file = fs::File::open(&path)?;
-        let take_len = end.saturating_sub(start) + 1;
-        std::io::Seek::seek(&mut file, std::io::SeekFrom::Start(start))?;
-        file.take(take_len).read_to_end(&mut body)?;
-    }
+    let body_len = if size == 0 {
+        0
+    } else {
+        end.saturating_sub(start) + 1
+    };
 
     let mut response = Response::new(status, reason)
         .with_header("Content-Type", content_type(&path))
         .with_header("Accept-Ranges", "bytes")
         .with_header("Last-Modified", http_date(&metadata))
-        .with_body(body);
+        .with_file_range(path.clone(), start, body_len);
     if status == 206 {
         response = response.with_header("Content-Range", format!("bytes {start}-{end}/{size}"));
     }
