@@ -302,20 +302,30 @@ curl -fsSL https://davbox.dev/install.sh | sh
 Release artifacts:
 
 ```text
-macOS arm64/x64
-Linux x86_64/aarch64
-Windows x86_64
+macOS arm64     davbox-vX.Y.Z-aarch64-apple-darwin.tar.gz
+macOS x64       davbox-vX.Y.Z-x86_64-apple-darwin.tar.gz
+Linux x64       davbox-vX.Y.Z-x86_64-unknown-linux-gnu.tar.gz
+Windows x64     davbox-vX.Y.Z-x86_64-pc-windows-msvc.zip
 ```
 
-Future CI should run:
+GitHub Actions release flow:
+
+```sh
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+The workflow in `.github/workflows/release.yml` runs for `v*` tags. It builds and tests on macOS, Linux, and Windows, packages each platform artifact with README and DESIGN docs, generates SHA-256 checksum files, and uploads everything to the matching GitHub Release.
+
+Each matrix job runs:
 
 ```sh
 cargo fmt --check
 cargo test
-cargo build --release
+cargo build --release --target <target>
 ```
 
-Then upload platform binaries and checksums.
+The release uses `GITHUB_TOKEN` with `contents: write` permission via `softprops/action-gh-release`.
 
 ## Near-Term Engineering Plan
 
@@ -323,4 +333,4 @@ Then upload platform binaries and checksums.
 2. Add `davbox doctor`.
 3. Add QR code rendering for mobile setup.
 4. Add compatibility tests using real WebDAV clients where practical.
-5. Add release packaging.
+5. Add more release targets such as Linux aarch64.

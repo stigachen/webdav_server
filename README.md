@@ -278,11 +278,30 @@ The test suite includes:
 - Server event and metrics tests.
 - Functional HTTP/WebDAV server tests over localhost.
 
+## Release
+
+Releases are built by GitHub Actions when a version tag is pushed:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow builds and uploads:
+
+```text
+macOS Apple Silicon   davbox-v0.1.0-aarch64-apple-darwin.tar.gz
+macOS Intel           davbox-v0.1.0-x86_64-apple-darwin.tar.gz
+Linux x64             davbox-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
+Windows x64           davbox-v0.1.0-x86_64-pc-windows-msvc.zip
+```
+
+Each artifact includes a `.sha256` checksum file.
+
 ## Roadmap
 
 Near-term:
 
 - `davbox doctor` for firewall, port, and network diagnostics.
 - QR code display for quick mobile setup.
-- Release builds for macOS, Linux, and Windows.
 - More compatibility testing with Finder, Windows Explorer, iOS Files, VLC, Kodi, and Infuse.
