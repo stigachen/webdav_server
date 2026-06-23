@@ -216,8 +216,7 @@ fn render_windows_pixel_logo() -> String {
         "#   # #   #  # #  #   # #   # #   #",
         "####  #   #   #   ####   ###  #   #",
     ];
-    rows
-        .iter()
+    rows.iter()
         .enumerate()
         .map(|(row_index, row)| render_pixel_logo_row(row, row_index))
         .collect::<String>()
