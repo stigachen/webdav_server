@@ -6,6 +6,9 @@ use std::time::Duration;
 use crate::core::events::{Metrics, ServerEvent};
 use crate::core::server::ServerInfo;
 
+const AUTHOR_ID: &str = "stigachen";
+const COPYRIGHT_YEAR: &str = "2026";
+
 pub struct ConsoleUi {
     info: ServerInfo,
 }
@@ -44,6 +47,7 @@ impl ConsoleUi {
     fn render_plain(&self) {
         let url = format!("http://{}:{}/", self.info.display_host, self.info.port);
         println!("davbox online: {url}");
+        println!("{}", product_meta_line());
         println!("Press Enter or Ctrl+C to stop.");
     }
 
@@ -102,7 +106,7 @@ impl ConsoleUi {
             &self.auth_line(),
         );
         let telemetry = render_metrics_block(metrics, upload_rate, download_rate);
-        let help = dim("Press Enter or Ctrl+C to stop.  Use --no-tui for plain output.");
+        let help = render_help_line(density);
         let activity = match density {
             DashboardDensity::Full => format!("{}\n\n{}", format_activity(metrics, 8), help),
             DashboardDensity::Compact => format!("{}\n{}", format_activity(metrics, 1), help),
@@ -440,6 +444,26 @@ fn format_activity(metrics: &Metrics, rows: usize) -> String {
     lines.join("\n")
 }
 
+fn render_help_line(density: DashboardDensity) -> String {
+    match density {
+        DashboardDensity::Full => dim(&format!(
+            "Press Enter or Ctrl+C to stop.  Use --no-tui for plain output.\n\n{}",
+            product_meta_line()
+        )),
+        DashboardDensity::Compact => dim(&format!("Enter/Ctrl+C stop · {}", product_meta_line())),
+    }
+}
+
+fn product_meta_line() -> String {
+    format!(
+        "Davbox {} · {} · © {} {}",
+        env!("CARGO_PKG_VERSION"),
+        env!("CARGO_PKG_LICENSE"),
+        COPYRIGHT_YEAR,
+        AUTHOR_ID
+    )
+}
+
 fn line(value: &str) -> String {
     format!("{value}\x1b[K\n")
 }
@@ -565,7 +589,8 @@ mod tests {
 
     use super::{
         ConsoleUi, DashboardDensity, HeaderStyle, compact_logo_lines, dynamic_start_row,
-        render_static_header, static_header_rows, windows_dashboard_density, windows_header_style,
+        product_meta_line, render_static_header, static_header_rows, windows_dashboard_density,
+        windows_header_style,
     };
 
     #[test]
@@ -630,10 +655,18 @@ mod tests {
     fn full_dashboard_keeps_eight_activity_rows() {
         let ui = ConsoleUi::new(test_server_info());
         let content = ui.render_dynamic_dashboard_content(&Metrics::new(), DashboardDensity::Full);
-        let placeholder_rows = content.matches("·").count();
+        let placeholder_rows = content.matches("\x1b[90m·\x1b[0m").count();
 
         assert_eq!(placeholder_rows, 8);
         assert!(content.contains("Press Enter or Ctrl+C to stop."));
+        assert!(content.contains("Davbox 0.1.3"));
+        assert!(content.contains("MIT"));
+        assert!(content.contains("stigachen"));
+    }
+
+    #[test]
+    fn product_meta_line_includes_build_and_owner_details() {
+        assert_eq!(product_meta_line(), "Davbox 0.1.3 · MIT · © 2026 stigachen");
     }
 
     #[cfg(windows)]
