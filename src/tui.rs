@@ -659,14 +659,20 @@ mod tests {
 
         assert_eq!(placeholder_rows, 8);
         assert!(content.contains("Press Enter or Ctrl+C to stop."));
-        assert!(content.contains("Davbox 0.1.3"));
+        assert!(content.contains(&format!("Davbox {}", env!("CARGO_PKG_VERSION"))));
         assert!(content.contains("MIT"));
         assert!(content.contains("stigachen"));
     }
 
     #[test]
     fn product_meta_line_includes_build_and_owner_details() {
-        assert_eq!(product_meta_line(), "Davbox 0.1.3 · MIT · © 2026 stigachen");
+        assert_eq!(
+            product_meta_line(),
+            format!(
+                "Davbox {} · MIT · © 2026 stigachen",
+                env!("CARGO_PKG_VERSION")
+            )
+        );
     }
 
     #[cfg(windows)]
