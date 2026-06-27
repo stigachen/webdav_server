@@ -32,19 +32,19 @@ Download the package for your platform from GitHub Releases, then unpack it and 
 macOS Apple Silicon:
 
 ```text
-davbox-v0.1.4-aarch64-apple-darwin.tar.gz
+davbox-v0.1.5-aarch64-apple-darwin.tar.gz
 ```
 
 Linux x64:
 
 ```text
-davbox-v0.1.4-x86_64-unknown-linux-gnu.tar.gz
+davbox-v0.1.5-x86_64-unknown-linux-gnu.tar.gz
 ```
 
 Windows x64:
 
 ```text
-davbox-v0.1.4-x86_64-pc-windows-msvc.zip
+davbox-v0.1.5-x86_64-pc-windows-msvc.zip
 ```
 
 ### macOS Gatekeeper
@@ -68,7 +68,7 @@ chmod +x ./davbox
 If you want to clear the whole unpacked folder:
 
 ```sh
-xattr -dr com.apple.quarantine ./davbox-v0.1.4-aarch64-apple-darwin
+xattr -dr com.apple.quarantine ./davbox-v0.1.5-aarch64-apple-darwin
 ```
 
 Long term, macOS release artifacts should be signed and notarized before broad public distribution.
@@ -335,16 +335,16 @@ The test suite includes:
 Releases are built by GitHub Actions when a version tag is pushed:
 
 ```sh
-git tag v0.1.4
-git push origin v0.1.4
+git tag v0.1.5
+git push origin v0.1.5
 ```
 
 The release workflow builds and uploads:
 
 ```text
-macOS Apple Silicon   davbox-v0.1.4-aarch64-apple-darwin.tar.gz
-Linux x64             davbox-v0.1.4-x86_64-unknown-linux-gnu.tar.gz
-Windows x64           davbox-v0.1.4-x86_64-pc-windows-msvc.zip
+macOS Apple Silicon   davbox-v0.1.5-aarch64-apple-darwin.tar.gz
+Linux x64             davbox-v0.1.5-x86_64-unknown-linux-gnu.tar.gz
+Windows x64           davbox-v0.1.5-x86_64-pc-windows-msvc.zip
 ```
 
 Each artifact includes a `.sha256` checksum file.
