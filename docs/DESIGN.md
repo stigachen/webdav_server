@@ -263,6 +263,8 @@ The TUI uses ANSI color, a large terminal logo, a neon divider, and compact comm
 
 The dashboard enters the terminal alternate screen and hides the cursor while running. On normal shutdown the terminal session guard restores the main screen, so periodic refreshes do not remain in shell scrollback. The large DAVBOX logo is rendered once when the TUI starts; periodic refreshes repaint only the dynamic status area below it. This keeps the Windows terminal from flickering around the top logo while preserving the low-scroll behavior on macOS and Linux.
 
+Shutdown from the TUI uses a two-step Enter confirmation with a 5-second timeout; Ctrl+C remains the immediate process interrupt path.
+
 ## Testing Strategy
 
 The project follows a test-driven style: every risky behavior should have a small focused test, and server behavior should have functional coverage.

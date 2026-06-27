@@ -101,6 +101,8 @@ Share a folder:
 davbox serve ~/Movies
 ```
 
+To stop the server, press Enter once to request shutdown, then press Enter again within 5 seconds to confirm. Ctrl+C exits immediately.
+
 Share as read-only:
 
 ```sh
