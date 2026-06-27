@@ -1,13 +1,15 @@
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::sync::mpsc::{Receiver, channel};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::core::events::{Metrics, ServerEvent};
 use crate::core::server::ServerInfo;
 
 const AUTHOR_ID: &str = "stigachen";
 const COPYRIGHT_YEAR: &str = "2026";
+const SHUTDOWN_CONFIRM_TIMEOUT: Duration = Duration::from_secs(5);
+const SHUTDOWN_CONFIRM_REFRESH: Duration = Duration::from_millis(250);
 
 pub struct ConsoleUi {
     info: ServerInfo,
@@ -21,12 +23,13 @@ impl ConsoleUi {
     pub fn run(&self, events: Receiver<ServerEvent>) {
         if !self.info.tui_enabled {
             self.render_plain();
-            wait_for_enter();
+            wait_for_confirmed_shutdown_plain();
             return;
         }
 
-        let quit = spawn_enter_listener();
+        let enter_events = spawn_enter_listener();
         let mut metrics = Metrics::new();
+        let mut shutdown = ShutdownConfirmation::new();
         let _terminal = TerminalSession::enter();
         if !redraw_static_header_each_frame() {
             self.render_static_header();
@@ -36,11 +39,19 @@ impl ConsoleUi {
             while let Ok(event) = events.try_recv() {
                 metrics.apply(event);
             }
-            self.render_dynamic_dashboard(&metrics);
-            if quit.try_recv().is_ok() {
-                break;
+            let now = Instant::now();
+            while enter_events.try_recv().is_ok() {
+                if shutdown.handle_enter(now) {
+                    return;
+                }
             }
-            thread::sleep(Duration::from_millis(self.info.tui_refresh_ms));
+            shutdown.expire(now);
+            let shutdown_prompt = shutdown.prompt(now);
+            self.render_dynamic_dashboard(&metrics, shutdown_prompt);
+            thread::sleep(refresh_sleep_duration(
+                self.info.tui_refresh_ms,
+                shutdown_prompt,
+            ));
         }
     }
 
@@ -48,7 +59,7 @@ impl ConsoleUi {
         let url = format!("http://{}:{}/", self.info.display_host, self.info.port);
         println!("davbox online: {url}");
         println!("{}", product_meta_line());
-        println!("Press Enter or Ctrl+C to stop.");
+        println!("Press Enter to stop. Ctrl+C exits immediately.");
     }
 
     fn render_static_header(&self) {
@@ -56,10 +67,10 @@ impl ConsoleUi {
         let _ = io::stdout().flush();
     }
 
-    fn render_dynamic_dashboard(&self, metrics: &Metrics) {
+    fn render_dynamic_dashboard(&self, metrics: &Metrics, shutdown_prompt: ShutdownPrompt) {
         if redraw_static_header_each_frame() {
             move_to_screen_start();
-            print!("{}", self.render_dashboard_frame(metrics));
+            print!("{}", self.render_dashboard_frame(metrics, shutdown_prompt));
             print!("{}", clear_to_screen_end_sequence());
             let _ = io::stdout().flush();
             return;
@@ -68,19 +79,19 @@ impl ConsoleUi {
         }
         print!(
             "{}{}",
-            self.render_dynamic_dashboard_content(metrics, DashboardDensity::Full),
+            self.render_dynamic_dashboard_content(metrics, DashboardDensity::Full, shutdown_prompt),
             clear_to_screen_end_sequence(),
         );
         let _ = io::stdout().flush();
     }
 
-    fn render_dashboard_frame(&self, metrics: &Metrics) -> String {
+    fn render_dashboard_frame(&self, metrics: &Metrics, shutdown_prompt: ShutdownPrompt) -> String {
         let header_style = windows_header_style();
         let density = windows_dashboard_density(header_style);
         format!(
             "{}{}",
             render_static_header(header_style),
-            self.render_dynamic_dashboard_content(metrics, density),
+            self.render_dynamic_dashboard_content(metrics, density, shutdown_prompt),
         )
     }
 
@@ -88,6 +99,7 @@ impl ConsoleUi {
         &self,
         metrics: &Metrics,
         density: DashboardDensity,
+        shutdown_prompt: ShutdownPrompt,
     ) -> String {
         let url = format!("http://{}:{}/", self.info.display_host, self.info.port);
         let (upload_rate, download_rate) = metrics.transfer_rates();
@@ -106,7 +118,7 @@ impl ConsoleUi {
             &self.auth_line(),
         );
         let telemetry = render_metrics_block(metrics, upload_rate, download_rate);
-        let help = render_help_line(density);
+        let help = render_help_line(density, shutdown_prompt);
         let activity = match density {
             DashboardDensity::Full => format!("{}\n\n{}", format_activity(metrics, 8), help),
             DashboardDensity::Compact => format!("{}\n{}", format_activity(metrics, 1), help),
@@ -149,15 +161,106 @@ impl ConsoleUi {
 fn spawn_enter_listener() -> Receiver<()> {
     let (sender, receiver) = channel();
     thread::spawn(move || {
-        wait_for_enter();
-        let _ = sender.send(());
+        loop {
+            if !wait_for_enter() {
+                break;
+            }
+            if sender.send(()).is_err() {
+                break;
+            }
+        }
     });
     receiver
 }
 
-fn wait_for_enter() {
-    let mut buffer = [0u8; 1];
-    let _ = io::stdin().read(&mut buffer);
+fn wait_for_confirmed_shutdown_plain() {
+    let enter_events = spawn_enter_listener();
+    let mut shutdown = ShutdownConfirmation::new();
+
+    while enter_events.recv().is_ok() {
+        let now = Instant::now();
+        if shutdown.handle_enter(now) {
+            return;
+        }
+
+        println!(
+            "Shutdown requested. Press Enter again to confirm, or wait {}s to cancel.",
+            SHUTDOWN_CONFIRM_TIMEOUT.as_secs()
+        );
+
+        match enter_events.recv_timeout(SHUTDOWN_CONFIRM_TIMEOUT) {
+            Ok(()) => return,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                shutdown.expire(Instant::now());
+                println!("Shutdown canceled. Press Enter to stop.");
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
+        }
+    }
+}
+
+fn wait_for_enter() -> bool {
+    let mut buffer = String::new();
+    matches!(io::stdin().read_line(&mut buffer), Ok(bytes_read) if bytes_read > 0)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShutdownPrompt {
+    Idle,
+    Confirm { seconds_remaining: u64 },
+}
+
+#[derive(Default)]
+struct ShutdownConfirmation {
+    requested_at: Option<Instant>,
+}
+
+impl ShutdownConfirmation {
+    fn new() -> Self {
+        Self { requested_at: None }
+    }
+
+    fn handle_enter(&mut self, now: Instant) -> bool {
+        self.expire(now);
+        if self.requested_at.is_some() {
+            return true;
+        }
+        self.requested_at = Some(now);
+        false
+    }
+
+    fn expire(&mut self, now: Instant) {
+        if self.requested_at.is_some_and(|requested_at| {
+            now.duration_since(requested_at) >= SHUTDOWN_CONFIRM_TIMEOUT
+        }) {
+            self.requested_at = None;
+        }
+    }
+
+    fn prompt(&self, now: Instant) -> ShutdownPrompt {
+        match self.requested_at {
+            Some(requested_at) => ShutdownPrompt::Confirm {
+                seconds_remaining: remaining_shutdown_seconds(requested_at, now),
+            },
+            None => ShutdownPrompt::Idle,
+        }
+    }
+}
+
+fn remaining_shutdown_seconds(requested_at: Instant, now: Instant) -> u64 {
+    let elapsed = now.saturating_duration_since(requested_at);
+    SHUTDOWN_CONFIRM_TIMEOUT
+        .saturating_sub(elapsed)
+        .as_secs()
+        .max(1)
+}
+
+fn refresh_sleep_duration(refresh_ms: u64, shutdown_prompt: ShutdownPrompt) -> Duration {
+    let configured = Duration::from_millis(refresh_ms);
+    match shutdown_prompt {
+        ShutdownPrompt::Idle => configured,
+        ShutdownPrompt::Confirm { .. } => configured.min(SHUTDOWN_CONFIRM_REFRESH),
+    }
 }
 
 struct TerminalSession;
@@ -444,13 +547,26 @@ fn format_activity(metrics: &Metrics, rows: usize) -> String {
     lines.join("\n")
 }
 
-fn render_help_line(density: DashboardDensity) -> String {
-    match density {
-        DashboardDensity::Full => dim(&format!(
-            "Press Enter or Ctrl+C to stop.  Use --no-tui for plain output.\n\n{}",
+fn render_help_line(density: DashboardDensity, shutdown_prompt: ShutdownPrompt) -> String {
+    match (density, shutdown_prompt) {
+        (DashboardDensity::Full, ShutdownPrompt::Idle) => dim(&format!(
+            "Press Enter to stop.  Ctrl+C exits immediately.  Use --no-tui for plain output.\n\n{}",
             product_meta_line()
         )),
-        DashboardDensity::Compact => dim(&format!("Enter/Ctrl+C stop · {}", product_meta_line())),
+        (DashboardDensity::Full, ShutdownPrompt::Confirm { seconds_remaining }) => dim(&format!(
+            "Shutdown requested. Press Enter again to confirm, or wait {seconds_remaining}s to cancel.\n\n{}",
+            product_meta_line()
+        )),
+        (DashboardDensity::Compact, ShutdownPrompt::Idle) => dim(&format!(
+            "Enter stop · Ctrl+C exits · {}",
+            product_meta_line()
+        )),
+        (DashboardDensity::Compact, ShutdownPrompt::Confirm { seconds_remaining }) => {
+            dim(&format!(
+                "Enter again to confirm · cancels in {seconds_remaining}s · {}",
+                product_meta_line()
+            ))
+        }
     }
 }
 
@@ -584,13 +700,16 @@ fn color(value: &str, code: u8) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     use crate::core::events::Metrics;
     use crate::core::server::ServerInfo;
 
     use super::{
-        ConsoleUi, DashboardDensity, HeaderStyle, compact_logo_lines, dynamic_start_row,
-        product_meta_line, render_static_header, static_header_rows, windows_dashboard_density,
-        windows_header_style,
+        ConsoleUi, DashboardDensity, HeaderStyle, SHUTDOWN_CONFIRM_TIMEOUT, ShutdownConfirmation,
+        ShutdownPrompt, compact_logo_lines, dynamic_start_row, product_meta_line,
+        refresh_sleep_duration, render_static_header, static_header_rows,
+        windows_dashboard_density, windows_header_style,
     };
 
     #[test]
@@ -633,7 +752,11 @@ mod tests {
         let frame = format!(
             "{}{}",
             render_static_header(HeaderStyle::Compact),
-            ui.render_dynamic_dashboard_content(&Metrics::new(), DashboardDensity::Compact),
+            ui.render_dynamic_dashboard_content(
+                &Metrics::new(),
+                DashboardDensity::Compact,
+                ShutdownPrompt::Idle,
+            ),
         );
 
         if cfg!(windows) {
@@ -654,14 +777,114 @@ mod tests {
     #[test]
     fn full_dashboard_keeps_eight_activity_rows() {
         let ui = ConsoleUi::new(test_server_info());
-        let content = ui.render_dynamic_dashboard_content(&Metrics::new(), DashboardDensity::Full);
+        let content = ui.render_dynamic_dashboard_content(
+            &Metrics::new(),
+            DashboardDensity::Full,
+            ShutdownPrompt::Idle,
+        );
         let placeholder_rows = content.matches("\x1b[90m·\x1b[0m").count();
 
         assert_eq!(placeholder_rows, 8);
-        assert!(content.contains("Press Enter or Ctrl+C to stop."));
+        assert!(content.contains("Press Enter to stop."));
+        assert!(content.contains("Ctrl+C exits immediately."));
         assert!(content.contains(&format!("Davbox {}", env!("CARGO_PKG_VERSION"))));
         assert!(content.contains("MIT"));
         assert!(content.contains("stigachen"));
+    }
+
+    #[test]
+    fn full_dashboard_renders_shutdown_confirmation_prompt() {
+        let ui = ConsoleUi::new(test_server_info());
+        let content = ui.render_dynamic_dashboard_content(
+            &Metrics::new(),
+            DashboardDensity::Full,
+            ShutdownPrompt::Confirm {
+                seconds_remaining: 5,
+            },
+        );
+
+        assert!(content.contains("Shutdown requested."));
+        assert!(content.contains("Press Enter again to confirm"));
+        assert!(content.contains("wait 5s to cancel"));
+        assert!(content.contains(&format!("Davbox {}", env!("CARGO_PKG_VERSION"))));
+    }
+
+    #[test]
+    fn compact_dashboard_confirmation_prompt_stays_within_row_budget() {
+        let ui = ConsoleUi::new(test_server_info());
+        let frame = format!(
+            "{}{}",
+            render_static_header(HeaderStyle::Compact),
+            ui.render_dynamic_dashboard_content(
+                &Metrics::new(),
+                DashboardDensity::Compact,
+                ShutdownPrompt::Confirm {
+                    seconds_remaining: 5,
+                },
+            ),
+        );
+
+        assert!(frame.contains("Enter again to confirm"));
+        assert!(
+            frame.lines().count() <= 24,
+            "compact confirmation dashboard should not scroll a typical 24-row terminal, got {} rows",
+            frame.lines().count()
+        );
+    }
+
+    #[test]
+    fn shutdown_confirmation_requires_second_enter_before_timeout() {
+        let mut shutdown = ShutdownConfirmation::new();
+        let start = Instant::now();
+
+        assert!(!shutdown.handle_enter(start));
+        assert_eq!(
+            shutdown.prompt(start + Duration::from_secs(1)),
+            ShutdownPrompt::Confirm {
+                seconds_remaining: 4,
+            }
+        );
+        assert!(shutdown.handle_enter(start + Duration::from_secs(2)));
+    }
+
+    #[test]
+    fn shutdown_confirmation_expires_after_timeout() {
+        let mut shutdown = ShutdownConfirmation::new();
+        let start = Instant::now();
+
+        assert!(!shutdown.handle_enter(start));
+        shutdown.expire(start + SHUTDOWN_CONFIRM_TIMEOUT);
+        assert_eq!(
+            shutdown.prompt(start + SHUTDOWN_CONFIRM_TIMEOUT),
+            ShutdownPrompt::Idle
+        );
+        assert!(!shutdown.handle_enter(start + SHUTDOWN_CONFIRM_TIMEOUT));
+    }
+
+    #[test]
+    fn confirmation_prompt_temporarily_caps_refresh_sleep() {
+        assert_eq!(
+            refresh_sleep_duration(2_000, ShutdownPrompt::Idle),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            refresh_sleep_duration(
+                2_000,
+                ShutdownPrompt::Confirm {
+                    seconds_remaining: 5,
+                },
+            ),
+            Duration::from_millis(250)
+        );
+        assert_eq!(
+            refresh_sleep_duration(
+                100,
+                ShutdownPrompt::Confirm {
+                    seconds_remaining: 5,
+                },
+            ),
+            Duration::from_millis(100)
+        );
     }
 
     #[test]
