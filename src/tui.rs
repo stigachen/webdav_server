@@ -558,12 +558,12 @@ fn render_help_line(density: DashboardDensity, shutdown_prompt: ShutdownPrompt) 
             product_meta_line()
         )),
         (DashboardDensity::Compact, ShutdownPrompt::Idle) => dim(&format!(
-            "Enter stop · Ctrl+C exits · {}",
+            "Enter stop · Ctrl+C exits\n{}",
             product_meta_line()
         )),
         (DashboardDensity::Compact, ShutdownPrompt::Confirm { seconds_remaining }) => {
             dim(&format!(
-                "Enter again to confirm · cancels in {seconds_remaining}s · {}",
+                "Enter again to confirm · cancels in {seconds_remaining}s\n{}",
                 product_meta_line()
             ))
         }
@@ -768,9 +768,25 @@ mod tests {
         assert!(frame.contains("TELEMETRY"));
         assert!(frame.contains("RECENT ACTIVITY"));
         assert!(
-            frame.lines().count() <= 24,
-            "compact dashboard should not scroll a typical 24-row terminal, got {} rows",
+            frame.lines().count() <= 25,
+            "compact dashboard should stay concise after splitting product metadata, got {} rows",
             frame.lines().count()
+        );
+    }
+
+    #[test]
+    fn compact_dashboard_keeps_product_meta_on_own_line() {
+        let ui = ConsoleUi::new(test_server_info());
+        let content = ui.render_dynamic_dashboard_content(
+            &Metrics::new(),
+            DashboardDensity::Compact,
+            ShutdownPrompt::Idle,
+        );
+
+        assert_adjacent_lines(
+            &content,
+            "Enter stop · Ctrl+C exits",
+            &format!("Davbox {}", env!("CARGO_PKG_VERSION")),
         );
     }
 
@@ -826,10 +842,42 @@ mod tests {
 
         assert!(frame.contains("Enter again to confirm"));
         assert!(
-            frame.lines().count() <= 24,
-            "compact confirmation dashboard should not scroll a typical 24-row terminal, got {} rows",
+            frame.lines().count() <= 25,
+            "compact confirmation dashboard should stay concise after splitting product metadata, got {} rows",
             frame.lines().count()
         );
+    }
+
+    #[test]
+    fn compact_confirmation_keeps_product_meta_on_own_line() {
+        let ui = ConsoleUi::new(test_server_info());
+        let content = ui.render_dynamic_dashboard_content(
+            &Metrics::new(),
+            DashboardDensity::Compact,
+            ShutdownPrompt::Confirm {
+                seconds_remaining: 5,
+            },
+        );
+
+        assert_adjacent_lines(
+            &content,
+            "Enter again to confirm · cancels in 5s",
+            &format!("Davbox {}", env!("CARGO_PKG_VERSION")),
+        );
+    }
+
+    fn assert_adjacent_lines(content: &str, first: &str, second: &str) {
+        let lines = content.lines().collect::<Vec<_>>();
+        let first_index = lines
+            .iter()
+            .position(|line| line.contains(first))
+            .expect("first line should be present");
+        let second_index = lines
+            .iter()
+            .position(|line| line.contains(second))
+            .expect("second line should be present");
+
+        assert_eq!(second_index, first_index + 1);
     }
 
     #[test]
